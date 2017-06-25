@@ -12,7 +12,7 @@ import textwrap
 
 CORE_FILES = [
         "./src/typing_extensions.py", 
-        "./tests/test_typing_extensions.py"
+        "./src/test_typing_extensions.py"
 ]
 TEST_DIR = "test_data"
 
@@ -75,8 +75,9 @@ def run_shell(command: str) -> Tuple[bool, str]:
     return (success, stdout)
 
 
-def main() -> None:
+def main() -> int:
     test_dirs = get_test_dirs()
+    exit_code = 0
     for test_dir in test_dirs:
         _, version_number = test_dir.split('-')
         print("Testing Python {}".format(version_number))
@@ -90,8 +91,10 @@ def main() -> None:
                 print("   All tests passed!")
             else:
                 print(textwrap.indent(output, "    "))
+                exit_code = 1
+    return exit_code
 
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main())
 

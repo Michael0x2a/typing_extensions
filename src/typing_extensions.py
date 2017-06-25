@@ -8,8 +8,6 @@ try:
     import collections.abc as collections_abc
 except ImportError:
     import collections as collections_abc  # Fallback for PY3.2.
-if sys.version_info[:2] >= (3, 6):
-    import _collections_abc # Needed for private function _check_methods # noqa
 
 if hasattr(typing, '_generic_new'):
     _generic_new = typing._generic_new
@@ -17,7 +15,8 @@ else:
     def _generic_new(base_cls, cls, *args, **kwargs):
         return base_cls.__new__(cls, *args, **kwargs)
 
-if hasattr(_collections_abc, '_check_methods'):
+if sys.version_info[:2] >= (3, 6):
+    import _collections_abc 
     _check_methods_in_mro = _collections_abc._check_methods
 else:
     def _check_methods_in_mro(C, *methods):
@@ -520,6 +519,26 @@ else:
 # TODO
 if hasattr(typing, 'Counter'):
     Counter = typing.Counter
+elif (3, 5, 0) <= sys.version_info <= (3, 5, 1):
+    _TInt = typing.TypeVar('_TInt')
+
+    class CounterMeta(typing.GenericMeta):
+        """Metaclass for Counter"""
+        def __getitem__(self, item):
+            return super().__getitem__((item, int))
+
+    class Counter(collections.Counter,
+                  typing.Dict[T, int],
+                  metaclass=CounterMeta,
+                  extra=collections.Counter):
+
+        __slots__ = ()
+
+        def __new__(cls, *args, **kwds):
+            if _geqv(cls, Counter):
+                return collections.Counter(*args, **kwds)
+            return _generic_new(collections.Counter, cls, *args, **kwds)
+
 else:
     class Counter(collections.Counter,
                   typing.Dict[T, int],
