@@ -24,20 +24,22 @@ __all__ = [
     'Type',
 
     # ABCs (from collections.abc).
-    #'ContextManager',
     # The following are added depending on presence
     # of their non-generic counterparts in stdlib:
     #'Awaitable',
     #'AsyncIterator',
     #'AsyncIterable',
     #'Coroutine',
-    #'Collection',
-    # 'AsyncGenerator',
+    #'AsyncGenerator',
     #'AsyncContextManager',
+    #'Collection',
+    #'ChainMap',
 
     # Concrete collection types.
+    'ContextManager',
     'Counter',
     'Deque',
+    'DefaultDict',
 
     # One-off things.
     'NewType',

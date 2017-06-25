@@ -7,25 +7,16 @@ import os
 import abc
 import contextlib
 import collections
-import pickle
-import re
 import sys
 from unittest import TestCase, main, skipUnless, SkipTest
-from copy import copy, deepcopy
 
-from typing import Any
-from typing import TypeVar, AnyStr
+from typing import TypeVar, Optional
 from typing import T, KT, VT  # Not in __all__.
-from typing import Union, Optional
 from typing import Tuple, List, MutableMapping
-from typing import Callable
-from typing import Generic, GenericMeta
-from typing import cast
+from typing import Generic
 from typing import get_type_hints
 from typing import no_type_check, no_type_check_decorator
 from typing import NamedTuple
-from typing import IO, TextIO, BinaryIO
-from typing import Pattern, Match
 from typing_extensions import NoReturn, ClassVar, Type, NewType
 import typing
 import typing_extensions
@@ -38,7 +29,6 @@ TYPING_V3 = sys.version_info >= (3, 6, 1)
 
 
 class BaseTestCase(TestCase):
-
     def assertIsSubclass(self, cls, class_or_tuple, msg=None):
         if not issubclass(cls, class_or_tuple):
             message = '%r is not a subclass of %r' % (cls, class_or_tuple)
@@ -58,22 +48,6 @@ class BaseTestCase(TestCase):
             f()
 
 
-class Employee:
-    pass
-
-
-class Manager(Employee):
-    pass
-
-
-class Founder(Employee):
-    pass
-
-
-class ManagingFounder(Manager, Founder):
-    pass
-
-
 class EnvironmentTest(BaseTestCase):
     def test_environment_is_ok(self):
         cwd = os.path.abspath(os.getcwd())
@@ -90,18 +64,25 @@ class EnvironmentTest(BaseTestCase):
     def test_python_version_is_ok(self):
         self.assertTrue(sys.version_info == PYTHON_VERSION)
 
+
+class Employee:
+    pass
+
+
 class NoReturnTests(BaseTestCase):
 
     def test_noreturn_instance_type_error(self):
         with self.assertRaises(TypeError):
             isinstance(42, NoReturn)
 
-    def test_noreturn_subclass_type_error(self):
+    def test_noreturn_subclass_type_error_1(self):
         with self.assertRaises(TypeError):
             issubclass(Employee, NoReturn)
-        if TYPING_V2:
-            with self.assertRaises(TypeError):
-                issubclass(NoReturn, Employee)
+
+    @skipUnless(TYPING_V2, "Behavior added in typing v2")
+    def test_noreturn_subclass_type_error_2(self):
+        with self.assertRaises(TypeError):
+            issubclass(NoReturn, Employee)
 
     def test_repr(self):
         if hasattr(typing, 'NoReturn'):
@@ -150,14 +131,14 @@ class ClassVarTests(BaseTestCase):
         cv = ClassVar[Employee]
         self.assertEqual(repr(cv), mod_name + '.ClassVar[%s.Employee]' % __name__)
 
+    @skipUnless(TYPING_V2, "Behavior added in typing v2")
     def test_cannot_subclass(self):
-        if TYPING_V2:
-            with self.assertRaises(TypeError):
-                class C(type(ClassVar)):
-                    pass
-            with self.assertRaises(TypeError):
-                class C(type(ClassVar[int])):
-                    pass
+        with self.assertRaises(TypeError):
+            class C(type(ClassVar)):
+                pass
+        with self.assertRaises(TypeError):
+            class C(type(ClassVar[int])):
+                pass
 
     def test_cannot_init(self):
         with self.assertRaises(TypeError):
@@ -271,19 +252,6 @@ class G(Generic[T]):
 class NoneAndForward:
     parent: 'NoneAndForward'
     meaning: None
-
-class CoolEmployee(NamedTuple):
-    name: str
-    cool: int
-
-class CoolEmployeeWithDefault(NamedTuple):
-    name: str
-    cool: int = 0
-
-class XMeth(NamedTuple):
-    x: int
-    def double(self):
-        return 2 * self.x
 
 class XRepr(NamedTuple):
     x: int
@@ -429,17 +397,17 @@ class CollectionsAbcTests(BaseTestCase):
     def test_counter(self):
         self.assertIsSubclass(collections.Counter, typing_extensions.Counter)
 
+    @skipUnless(TYPING_V3, "Behavior added in typing v3")
     def test_defaultdict_instantiation(self):
-        if TYPING_V3:
-            self.assertIs(
-                    type(typing_extensions.DefaultDict()), 
-                    collections.defaultdict)
-            self.assertIs(
-                    type(typing_extensions.DefaultDict[KT, VT]()), 
-                    collections.defaultdict)
-            self.assertIs(
-                    type(typing_extensions.DefaultDict[str, int]()), 
-                    collections.defaultdict)
+        self.assertIs(
+                type(typing_extensions.DefaultDict()), 
+                collections.defaultdict)
+        self.assertIs(
+                type(typing_extensions.DefaultDict[KT, VT]()), 
+                collections.defaultdict)
+        self.assertIs(
+                type(typing_extensions.DefaultDict[str, int]()), 
+                collections.defaultdict)
 
     def test_defaultdict_subclass(self):
 
@@ -638,7 +606,10 @@ class AllTests(BaseTestCase):
         a = typing_extensions.__all__
         self.assertIn('ClassVar', a)
         self.assertIn('Type', a)
+        self.assertIn('ChainMap', a)
+        self.assertIn('ContextManager', a)
         self.assertIn('Counter', a)
+        self.assertIn('DefaultDict', a)
         self.assertIn('Deque', a)
         self.assertIn('NewType', a)
         self.assertIn('overload', a)
