@@ -383,11 +383,11 @@ class CollectionsAbcTests(BaseTestCase):
         self.assertNotIsInstance(42, typing_extensions.AsyncIterator)
 
     def test_collection(self):
-        if hasattr(collections_abc, 'Collection'):
-            self.assertIsInstance(tuple(), typing_extensions.Collection)
-            self.assertIsInstance(frozenset(), typing_extensions.Collection)
-            self.assertIsSubclass(dict, typing_extensions.Collection)
-            self.assertNotIsInstance(42, typing_extensions.Collection)
+        #if hasattr(collections_abc, 'Collection'):
+        self.assertIsInstance(tuple(), typing_extensions.Collection)
+        self.assertIsInstance(frozenset(), typing_extensions.Collection)
+        self.assertIsSubclass(dict, typing_extensions.Collection)
+        self.assertNotIsInstance(42, typing_extensions.Collection)
 
     def test_deque(self):
         self.assertIsSubclass(collections.deque, typing_extensions.Deque)

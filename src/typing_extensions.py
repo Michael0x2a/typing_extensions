@@ -17,6 +17,22 @@ else:
     def _generic_new(base_cls, cls, *args, **kwargs):
         return base_cls.__new__(cls, *args, **kwargs)
 
+if hasattr(_collections_abc, '_check_methods'):
+    _check_methods_in_mro = _collections_abc._check_methods
+else:
+    def _check_methods_in_mro(C, *methods):
+        mro = C.__mro__
+        for method in methods:
+            for B in mro:
+                if method in B.__dict__:
+                    if B.__dict__[method] is None:
+                        return NotImplemented
+                    break
+            else:
+                return NotImplemented
+        return True
+
+
 # Please keep __all__ alphabetized within each category.
 __all__ = [
     # Super-special typing primitives.
@@ -32,10 +48,10 @@ __all__ = [
     #'Coroutine',
     #'AsyncGenerator',
     #'AsyncContextManager',
-    #'Collection',
     #'ChainMap',
 
     # Concrete collection types.
+    'Collection',
     'ContextManager',
     'Counter',
     'Deque',
@@ -383,12 +399,29 @@ if _define_guard('AsyncIterator'):
 
 
 # TODO
-if _define_guard('Collection'):
+if hasattr(typing, 'Collection'):
+    Collection = typing.Collection
+else:
+    class _CollectionConcrete(collections.Sized, 
+                              collections.Iterable, 
+                              collections.Container):
+        __slots__ = ()
+
+        @classmethod
+        def __subclasshook__(cls, C):
+            if cls is _CollectionConcrete:
+                return _check_methods_in_mro(
+                        C,  "__len__", "__iter__", "__contains__")
+            return NotImplemented
+
+    extra = getattr(collections_abc, 'Collection', _CollectionConcrete)
+
     class Collection(typing.Sized,
                      typing.Iterable[T_co],
                      typing.Container[T_co],
-                     extra=collections_abc.Collection):
+                     extra=extra):
         __slots__ = ()
+
 
 
 # TODO
@@ -462,11 +495,7 @@ class AsyncContextManager(typing.Generic[T_co]):
     @classmethod
     def __subclasshook__(cls, C):
         if cls is AsyncContextManager:
-            if sys.version_info[:2] >= (3, 6):
-                return _collections_abc._check_methods(C, "__aenter__", "__aexit__")
-            if (any("__aenter__" in B.__dict__ for B in C.__mro__) and
-                    any("__aexit__" in B.__dict__ for B in C.__mro__)):
-                return True
+            return _check_methods_in_mro(C, "__aenter__", "__aexit__")
         return NotImplemented
 
 __all__.append('AsyncContextManager')
