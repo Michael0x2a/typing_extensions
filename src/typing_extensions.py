@@ -3,7 +3,6 @@ from abc import abstractmethod, abstractproperty
 import collections
 import contextlib
 import sys
-#import old_typing as typing
 import typing
 try:
     import collections.abc as collections_abc
@@ -12,6 +11,11 @@ except ImportError:
 if sys.version_info[:2] >= (3, 6):
     import _collections_abc # Needed for private function _check_methods # noqa
 
+if hasattr(typing, '_generic_new'):
+    _generic_new = typing._generic_new
+else:
+    def _generic_new(base_cls, cls, *args, **kwargs):
+        return base_cls.__new__(cls, *args, **kwargs)
 
 # Please keep __all__ alphabetized within each category.
 __all__ = [
@@ -20,16 +24,16 @@ __all__ = [
     'Type',
 
     # ABCs (from collections.abc).
-    'ContextManager',
+    #'ContextManager',
     # The following are added depending on presence
     # of their non-generic counterparts in stdlib:
-    'Awaitable',
-    'AsyncIterator',
-    'AsyncIterable',
-    'Coroutine',
-    'Collection',
+    #'Awaitable',
+    #'AsyncIterator',
+    #'AsyncIterable',
+    #'Coroutine',
+    #'Collection',
     # 'AsyncGenerator',
-    'AsyncContextManager',
+    #'AsyncContextManager',
 
     # Concrete collection types.
     'Counter',
@@ -109,7 +113,7 @@ T_contra = typing.TypeVar('T_contra', contravariant=True)  # Ditto contravariant
 
 def _gorg(a):
     """Return the farthest origin of a generic class (internal helper)."""
-    assert isinstance(a, GenericMeta)
+    assert isinstance(a, typing.GenericMeta)
     while a.__origin__ is not None:
         a = a.__origin__
     return a
@@ -125,7 +129,7 @@ def _geqv(a, b):
 
     The relation is reflexive, symmetric and transitive.
     """
-    assert isinstance(a, GenericMeta) and isinstance(b, GenericMeta)
+    assert isinstance(a, typing.GenericMeta) and isinstance(b, typing.GenericMeta)
     # Reduce each to its origin.
     return _gorg(a) is _gorg(b)
 
@@ -133,8 +137,8 @@ def _geqv(a, b):
 # TODO
 if hasattr(typing, 'ClassVar'):
     ClassVar = typing.ClassVar
-else:
-    class ClassVar:
+elif hasattr(typing, '_FinalTypingBase'):
+    class _ClassVar(typing._FinalTypingBase, _root=True):
         """Special type construct to mark class variables.
 
         An annotation wrapped in ClassVar indicates that a given
@@ -158,12 +162,108 @@ else:
 
         def __getitem__(self, item):
             cls = type(self)
-            cls_name = cls.__name__[1:]
             if self.__type__ is None:
-                return cls(typing._type_check(item,
-                           '{} accepts only single type.'.format(cls_name)))
+                return cls(_type_check(item,
+                           '{} accepts only single type.'.format(cls.__name__[1:])),
+                           _root=True)
             raise TypeError('{} cannot be further subscripted'
-                            .format(cls_name))
+                            .format(cls.__name__[1:]))
+
+        def _eval_type(self, globalns, localns):
+            new_tp = _eval_type(self.__type__, globalns, localns)
+            if new_tp == self.__type__:
+                return self
+            return type(self)(new_tp, _root=True)
+
+        def __repr__(self):
+            r = super().__repr__()
+            if self.__type__ is not None:
+                r += '[{}]'.format(typing._type_repr(self.__type__))
+            return r
+
+        def __hash__(self):
+            return hash((type(self).__name__, self.__type__))
+
+        def __eq__(self, other):
+            if not isinstance(other, _ClassVar):
+                return NotImplemented
+            if self.__type__ is not None:
+                return self.__type__ == other.__type__
+            return self is other
+
+
+    ClassVar = _ClassVar(_root=True)
+else:
+    class ClassVarMeta(typing.TypingMeta):
+        """Metaclass for ClassVar"""
+
+        def __new__(cls, name, bases, namespace, tp=None, _root=False):
+            self = super().__new__(cls, name, bases, namespace, _root=_root)
+            if tp is not None:
+                self.__type__ = tp
+            return self
+
+        def __instancecheck__(self, obj):
+            raise TypeError("ClassVar cannot be used with isinstance().")
+
+        def __subclasscheck__(self, cls):
+            raise TypeError("ClassVar cannot be used with issubclass().")
+
+        def __getitem__(self, item):
+            cls = type(self)
+            if self.__type__ is not None:
+                raise TypeError('{} cannot be further subscripted'
+                                .format(cls.__name__[1:]))
+
+            param = typing._type_check(
+                item,
+                '{} accepts only single type.'.format(cls.__name__[1:]))
+            return cls(self.__name__, self.__bases__,
+                       dict(self.__dict__), tp=param, _root=True)
+
+        def _eval_type(self, globalns, localns):
+            new_tp = _eval_type(self.__type__, globalns, localns)
+            if new_tp == self.__type__:
+                return self
+            return type(self)(self.__name__, self.__bases__,
+                              dict(self.__dict__), tp=self.__type__,
+                              _root=True)
+
+        def __repr__(self):
+            r = super().__repr__()
+            if self.__type__ is not None:
+                r += '[{}]'.format(typing._type_repr(self.__type__))
+            return r
+
+        def __hash__(self):
+            return hash((type(self).__name__, self.__type__))
+
+        def __eq__(self, other):
+            if not isinstance(other, ClassVar):
+                return NotImplemented
+            if self.__type__ is not None:
+                return self.__type__ == other.__type__
+            return self is other
+
+
+    class ClassVar(typing.Final, metaclass=ClassVarMeta, _root=True):
+        """Special type construct to mark class variables.
+
+        An annotation wrapped in ClassVar indicates that a given
+        attribute is intended to be used as a class variable and
+        should not be set on instances of that class. Usage::
+
+          class Starship:
+              stats: ClassVar[Dict[str, int]] = {} # class variable
+              damage: int = 10                     # instance variable
+
+        ClassVar accepts only types and cannot be further subscribed.
+
+        Note that ClassVar is not a class itself, and should not
+        be used with isinstance() or issubclass().
+        """
+
+        __type__ = None
 
 
 def _overload_dummy(*args, **kwds):
@@ -211,77 +311,81 @@ CT_co = typing.TypeVar('CT_co', covariant=True, bound=type)
 
 # TODO
 # This is not a real generic class.  Don't use outside annotations.
-class Type(typing.Generic[CT_co], extra=type):
-    """A special construct usable to annotate class objects.
+if hasattr(typing, 'Type'):
+    Type = typing.Type
+else:
+    class Type(typing.Generic[CT_co], extra=type):
+        """A special construct usable to annotate class objects.
 
-    For example, suppose we have the following classes::
+        For example, suppose we have the following classes::
 
-      class User: ...  # Abstract base for User classes
-      class BasicUser(User): ...
-      class ProUser(User): ...
-      class TeamUser(User): ...
+          class User: ...  # Abstract base for User classes
+          class BasicUser(User): ...
+          class ProUser(User): ...
+          class TeamUser(User): ...
 
-    And a function that takes a class argument that's a subclass of
-    User and returns an instance of the corresponding class::
+        And a function that takes a class argument that's a subclass of
+        User and returns an instance of the corresponding class::
 
-      U = TypeVar('U', bound=User)
-      def new_user(user_class: Type[U]) -> U:
-          user = user_class()
-          # (Here we could write the user object to a database)
-          return user
-      joe = new_user(BasicUser)
+          U = TypeVar('U', bound=User)
+          def new_user(user_class: Type[U]) -> U:
+              user = user_class()
+              # (Here we could write the user object to a database)
+              return user
+          joe = new_user(BasicUser)
 
-    At this point the type checker knows that joe has type BasicUser.
-    """
+        At this point the type checker knows that joe has type BasicUser.
+        """
 
-    __slots__ = ()
+        __slots__ = ()
 
 
 # Various ABCs mimicking those in collections.abc.
 # A few are simply re-exported for completeness.
 
-def _get_extra(name):
-    return getattr(collections_abc, name, None)
+def _define_guard(type_name):
+    if hasattr(typing, type_name):
+        __all__.append(type_name)
+        globals()[type_name] = getattr(typing, type_name)
+        return False 
+    elif hasattr(collections_abc, type_name):
+        __all__.append(type_name)
+        return True
+    else:
+        return False
+
 
 # TODO
-if hasattr(typing, 'Awaitable'):
-    Awaitable = typing.Awaitable
-else:
-    class Awaitable(typing.Generic[T_co], extra=_get_extra('Awaitable')):
+if _define_guard('Awaitable'):
+    class Awaitable(typing.Generic[T_co], extra=collections_abc.Awaitable):
         __slots__ = ()
 
 
 # TODO
-if hasattr(typing, 'Coroutine'):
-    Coroutine = typing.Coroutine
-else:
+if _define_guard('Coroutine'):
     class Coroutine(Awaitable[V_co], typing.Generic[T_co, T_contra, V_co],
-                    extra=_get_extra('Coroutine')):
+                    extra=collections_abc.Coroutine):
         __slots__ = ()
 
 
 # TODO
-if hasattr(typing, 'AsyncIterable'):
-    AsyncIterable = typing.AsyncIterable
-    AsyncIterator = typing.AsyncIterator
-else:
+if _define_guard('AsyncIterable'):
     class AsyncIterable(typing.Generic[T_co],
-                        extra=_get_extra('AsyncIterable')):
+                        extra=collections_abc.AsyncIterable):
         __slots__ = ()
 
+if _define_guard('AsyncIterator'):
     class AsyncIterator(AsyncIterable[T_co],
-                        extra=_get_extra('AsyncIterator')):
+                        extra=collections_abc.AsyncIterator):
         __slots__ = ()
 
 
 # TODO
-if hasattr(typing, 'Collection'):
-    Collection = typing.Collection
-else:
+if _define_guard('Collection'):
     class Collection(typing.Sized,
                      typing.Iterable[T_co],
                      typing.Container[T_co],
-                     extra=_get_extra('Collection')):
+                     extra=collections_abc.Collection):
         __slots__ = ()
 
 
@@ -377,7 +481,7 @@ else:
         __slots__ = ()
 
         def __new__(cls, *args, **kwds):
-            if _geqv(cls, typing.DefaultDict):
+            if _geqv(cls, DefaultDict):
                 return collections.defaultdict(*args, **kwds)
             return _generic_new(collections.defaultdict, cls, *args, **kwds)
 
@@ -386,7 +490,8 @@ else:
 if hasattr(typing, 'Counter'):
     Counter = typing.Counter
 else:
-    class Counter(collections.Counter, typing.Dict[T, int],
+    class Counter(collections.Counter,
+                  typing.Dict[T, int],
                   extra=collections.Counter):
 
         __slots__ = ()
@@ -417,11 +522,9 @@ elif hasattr(collections, 'ChainMap'):
 
 
 # TODO
-if hasattr(typing, 'AsyncGenerator'):
-    AsyncGenerator = typing.AsyncGenerator
-else:
+if _define_guard('AsyncGenerator'):
     class AsyncGenerator(AsyncIterator[T_co], typing.Generic[T_co, T_contra],
-                         extra=_get_extra('AsyncGenerator')):
+                         extra=collections_abc.AsyncGenerator):
         __slots__ = ()
 
 
