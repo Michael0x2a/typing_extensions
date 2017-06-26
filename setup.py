@@ -26,12 +26,6 @@ module without worrying about naming conflicts with the standard library.
 Users of Python 2.7, 3.3, and 3.4 should install the typing module
 from pypi and use that directly, except when writing code that needs to
 be compatible across multiple versions of Python.
-
-Typing defines a standard notation for Python function and variable
-type annotations. The notation can be used for documenting code in a
-concise, standard format, and it has been designed to also be used by
-static and runtime type checkers, static analyzers, IDEs and other
-tools.
 '''
 
 classifiers = [
@@ -48,15 +42,30 @@ classifiers = [
     'Topic :: Software Development',
 ]
 
+if sys.version_info.major == 2:
+    package_dir = 'src_py2'
+elif sys.version_info.major == 3:
+    package_dir == 'src_py3'
+else:
+    raise AssertionError()
+
+install_requires = []
+if sys.version_info < (3, 5):
+    install_requires.append('typing >= 3.6.1')
+
 setup(name='typing_extensions',
       version=version,
       description=description,
       long_description=long_description,
-      author='Guido van Rossum, Jukka Lehtosalo, Lukasz Langa',
+      author='Guido van Rossum, Jukka Lehtosalo, Lukasz Langa, Michael Lee',
       author_email='jukka.lehtosalo@iki.fi',
-      url='https://docs.python.org/3/library/typing.html',
+      # TODO: Change URL
+      url='https://github.com/michael0x2a/typing_extensions',
       license='PSF',
       keywords='typing function annotations type hints hinting checking '
                'checker typehints typehinting typechecking backport',
+      package_dir={'': package_dir},
       py_modules=['typing_extensions'],
-      classifiers=classifiers)
+      classifiers=classifiers,
+      install_requires=install_requires,
+)
