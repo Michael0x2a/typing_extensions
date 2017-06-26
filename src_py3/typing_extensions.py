@@ -116,7 +116,6 @@ else:
         __slots__ = ()
 
 
-# TODO: Can we clean up any of these?
 # Some unconstrained type variables.  These are used by the container types.
 # (These are not for export.)
 T = typing.TypeVar('T')  # Any type.
@@ -151,7 +150,6 @@ def _geqv(a, b):
     return _gorg(a) is _gorg(b)
 
 
-# TODO
 if hasattr(typing, 'ClassVar'):
     ClassVar = typing.ClassVar
 elif hasattr(typing, '_FinalTypingBase'):
@@ -292,7 +290,6 @@ def _overload_dummy(*args, **kwds):
         "by an implementation that is not @overload-ed.")
 
 
-# TODO: Keep?
 def overload(func):
     """Decorator for overloaded functions/methods.
 
@@ -322,15 +319,15 @@ def overload(func):
     return _overload_dummy
 
 
-# Internal type variable used for Type[].
-CT_co = typing.TypeVar('CT_co', covariant=True, bound=type)
 
 
-# TODO
 # This is not a real generic class.  Don't use outside annotations.
 if hasattr(typing, 'Type'):
     Type = typing.Type
 else:
+    # Internal type variable used for Type[].
+    CT_co = typing.TypeVar('CT_co', covariant=True, bound=type)
+
     class Type(typing.Generic[CT_co], extra=type):
         """A special construct usable to annotate class objects.
 
@@ -361,6 +358,13 @@ else:
 # A few are simply re-exported for completeness.
 
 def _define_guard(type_name):
+    """
+    Returns True if the given type isn't defined in typing but
+    is defined in collections_abc.
+
+    Adds the type to __all__ if the collection is found in either
+    typing or collection_abc.
+    """
     if hasattr(typing, type_name):
         __all__.append(type_name)
         globals()[type_name] = getattr(typing, type_name)
@@ -372,24 +376,22 @@ def _define_guard(type_name):
         return False
 
 
-# TODO
 if _define_guard('Awaitable'):
     class Awaitable(typing.Generic[T_co], extra=collections_abc.Awaitable):
         __slots__ = ()
 
 
-# TODO
 if _define_guard('Coroutine'):
     class Coroutine(Awaitable[V_co], typing.Generic[T_co, T_contra, V_co],
                     extra=collections_abc.Coroutine):
         __slots__ = ()
 
 
-# TODO
 if _define_guard('AsyncIterable'):
     class AsyncIterable(typing.Generic[T_co],
                         extra=collections_abc.AsyncIterable):
         __slots__ = ()
+
 
 if _define_guard('AsyncIterator'):
     class AsyncIterator(AsyncIterable[T_co],
@@ -397,23 +399,25 @@ if _define_guard('AsyncIterator'):
         __slots__ = ()
 
 
-# TODO
 if hasattr(typing, 'Collection'):
     Collection = typing.Collection
 else:
-    class _CollectionConcrete(collections.Sized, 
-                              collections.Iterable, 
-                              collections.Container):
+    __all__.append('Collection')
+
+    # Backport collections.abc.Collections
+    class _CollectionAbc(collections.Sized, 
+                         collections.Iterable, 
+                         collections.Container):
         __slots__ = ()
 
         @classmethod
         def __subclasshook__(cls, C):
-            if cls is _CollectionConcrete:
+            if cls is _CollectionAbc:
                 return _check_methods_in_mro(
                         C,  "__len__", "__iter__", "__contains__")
             return NotImplemented
 
-    extra = getattr(collections_abc, 'Collection', _CollectionConcrete)
+    extra = getattr(collections_abc, 'Collection', _CollectionAbc)
 
     class Collection(typing.Sized,
                      typing.Iterable[T_co],
@@ -422,8 +426,6 @@ else:
         __slots__ = ()
 
 
-
-# TODO
 if hasattr(typing, 'Deque'):
     Deque = typing.Deque
 else:
@@ -437,8 +439,6 @@ else:
             return _generic_new(collections.deque, cls, *args, **kwds)
 
 
-
-# TODO
 if hasattr(typing, 'ContextManager'):
     ContextManager = typing.ContextManager
 elif hasattr(contextlib, 'AbstractContextManager'):
@@ -501,7 +501,6 @@ __all__.append('AsyncContextManager')
 """)
 
 
-# TODO
 if hasattr(typing, 'DefaultDict'):
     DefaultDict = typing.DefaultDict
 else:
@@ -516,7 +515,6 @@ else:
             return _generic_new(collections.defaultdict, cls, *args, **kwds)
 
 
-# TODO
 if hasattr(typing, 'Counter'):
     Counter = typing.Counter
 elif (3, 5, 0) <= sys.version_info <= (3, 5, 1):
@@ -552,7 +550,6 @@ else:
             return _generic_new(collections.Counter, cls, *args, **kwds)
 
 
-# TODO
 if hasattr(typing, 'ChainMap'):
     ChainMap = typing.ChainMap
     __all__.append('ChainMap')
@@ -571,14 +568,12 @@ elif hasattr(collections, 'ChainMap'):
     __all__.append('ChainMap')
 
 
-# TODO
 if _define_guard('AsyncGenerator'):
     class AsyncGenerator(AsyncIterator[T_co], typing.Generic[T_co, T_contra],
                          extra=collections_abc.AsyncGenerator):
         __slots__ = ()
 
 
-# TODO
 if hasattr(typing, 'NewType'):
     NewType = typing.NewType
 else:
@@ -609,17 +604,12 @@ else:
         return new_type
 
 
-# TODO
 if hasattr(typing, 'Text'):
     Text = typing.Text
-elif sys.version_info < (3, 0):
-    # Python-version-specific alias (Python 2: unicode; Python 3: str)
-    Text = unicode
 else:
     Text = str
 
 
-# TODO
 if hasattr(typing, 'TYPE_CHECKING'):
     TYPE_CHECKING = typing.TYPE_CHECKING
 else:

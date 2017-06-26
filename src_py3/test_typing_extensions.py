@@ -1,13 +1,18 @@
 # Override version info
 import sys
-PYTHON_VERSION = tuple(map(int, sys.argv[1].split('.')))
-sys.version_info = PYTHON_VERSION
+ORIGINAL_VERSION = sys.version_info
+if len(sys.argv) >= 2:
+    PYTHON_VERSION = tuple(map(int, sys.argv[1].split('.')))
+    sys.version_info = PYTHON_VERSION
+    OVERRIDING_VERSION = True
+else:
+    PYTHON_VERSION = ORIGINAL_VERSION
+    OVERRIDING_VERSION = False
 
 import os
 import abc
 import contextlib
 import collections
-import sys
 from unittest import TestCase, main, skipUnless, SkipTest
 
 from typing import TypeVar, Optional
@@ -20,7 +25,6 @@ from typing import NamedTuple
 from typing_extensions import NoReturn, ClassVar, Type, NewType
 import typing
 import typing_extensions
-import weakref
 import collections.abc as collections_abc
 import _collections_abc
 
@@ -50,6 +54,7 @@ class BaseTestCase(TestCase):
 
 
 class EnvironmentTest(BaseTestCase):
+    @skipUnless(OVERRIDING_VERSION, "Environment tests apply only when overriding")
     def test_environment_is_ok(self):
         cwd = os.path.abspath(os.getcwd())
         def correct_dir(module):
@@ -67,6 +72,8 @@ class EnvironmentTest(BaseTestCase):
 
     def test_python_version_is_ok(self):
         self.assertTrue(sys.version_info == PYTHON_VERSION)
+        self.assertTrue(sys.version_info <= ORIGINAL_VERSION)
+        self.assertTrue(ORIGINAL_VERSION[0] == 3)
 
 
 class Employee:

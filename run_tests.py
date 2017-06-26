@@ -10,16 +10,22 @@ import subprocess
 import sys
 import textwrap
 
-CORE_FILES = [
-        "./src/typing_extensions.py", 
-        "./src/test_typing_extensions.py"
+CORE_FILES_2 = [
+        "./src_py2/typing_extensions.py", 
+        "./src_py2/test_typing_extensions.py"
+]
+CORE_FILES_3 = [
+        "./src_py3/typing_extensions.py", 
+        "./src_py3/test_typing_extensions.py"
 ]
 TEST_DIR = "test_data"
 
 if sys.platform.startswith('win32'):
-    PYTHON = "py -3"
+    PYTHON2 = "py -2.7"
+    PYTHON3 = "py -3.6"
 else:
-    PYTHON = "python3"
+    PYTHON2 = "python"
+    PYTHON3 = "python3"
 
 
 def get_test_dirs() -> List[str]:
@@ -80,11 +86,15 @@ def main() -> int:
     exit_code = 0
     for test_dir in test_dirs:
         _, version_number = test_dir.split('-')
+        py2 = version_number.startswith("2")
         print("Testing Python {}".format(version_number))
 
-        with temp_copy(CORE_FILES, test_dir), change_directory(test_dir):
+        core_files = CORE_FILES_2 if py2 else CORE_FILES_3
+        python_exe = PYTHON2 if py2 else PYTHON3
+        
+        with temp_copy(core_files, test_dir), change_directory(test_dir):
             success, output = run_shell("{} {} {}".format(
-                PYTHON, 
+                python_exe, 
                 "test_typing_extensions.py",
                 version_number))
             if success:
