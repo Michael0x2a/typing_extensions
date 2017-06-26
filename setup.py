@@ -45,7 +45,7 @@ classifiers = [
 if sys.version_info.major == 2:
     package_dir = 'src_py2'
 elif sys.version_info.major == 3:
-    package_dir == 'src_py3'
+    package_dir = 'src_py3'
 else:
     raise AssertionError()
 
